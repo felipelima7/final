@@ -1,0 +1,234 @@
+---
+title: "A look at the 2016 elections"
+author: "Felipe Giacomelli"
+date: "9/26/2018"
+output:
+  html_document: 
+    toc: true
+    toc_float: true
+---
+
+Who elected Donald Trump as the 45th president of the United States? Well, this is a much more complex question than it looks like.
+
+Some analysis quickly will point out that the Republican had more votes in rural and conservative States (ie. in the Midwest) and also in places facing tough economic situations, as Detroit.
+
+This would be a consequence of his promises to rescue the pride of being American, to review the US foreign politics, thus making more favorable deals for the country and making the access to the US harder, especially for muslins and Hispanic immigrants.
+
+So, one could assume that Trump had more success in places  with a predominantly white population, and in more conservative areas. However is this the end of the history?
+
+In the following charts, we will analyze if minorities (African Americans, Hispanics, and Asians) voted for Trump in the 2016 elections and how the elected president performed at every US county.
+
+In a side note, this is an assignment for "Introduction to R for Journalists: How to Find Great Stories in Data" Knight Center's course, taught by Andrew Ba Tran.
+
+Having said that, let's start the work, load the data and wrangle it. I already had it saved in my PC, but you can find it easily at [US Census Bureau website](https://www.census.gov/topics/public-sector/voting.html).
+
+```{r charts, warning=F, message=F, error=F, echo=TRUE}
+
+#loading libraries
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(leaflet)
+library(tigris)
+library(plotly)
+
+#loading data
+
+us_elections <- read_csv("CountyDataMOD4.csv")
+us_elections$FIPS <- sprintf("%05d",us_elections$FIPS)
+
+#cleaning data
+
+us50 <- us_elections %>%
+  filter(State != "DC")
+
+#replacing decimmal comma with dot and converting variable to numeric
+
+us50$BlackPerc <- gsub("\\,", "\\.", us50$BlackPercentage)
+us50$BlackPerc <- as.numeric(us50$BlackPerc)
+us50$AsianPerc <- gsub("\\,", "\\.", us50$AsianPercentage)
+us50$AsianPerc <- as.numeric(us50$AsianPerc)
+us50$HispanicPerc <- gsub("\\,", "\\.", us50$HispanicPercentage)
+us50$HispanicPerc <- as.numeric(us50$HispanicPerc)
+
+#showing data in percentage
+
+us50 <- mutate(us50, PercAfricanAmericanPop=BlackPerc*100)
+us50 <- mutate(us50, PercAsianPop=AsianPerc*100)
+us50 <- mutate(us50, PercHispanicPop=HispanicPerc*100)
+
+#creating labels for legend and removing NAs
+
+us50label <- us50 %>%
+  mutate(label=case_when(DemocratOrRepublican == "0" ~ "Trump won",
+                               DemocratOrRepublican == "1" ~ "Hillary won"))
+
+us50label <- us50label %>%
+  filter(label != "NA")
+
+# renaming cols
+
+us50label2 <- us50label %>%
+  rename(PercTrumpVotes = PerRepROUND,
+         Result = label)
+```
+
+
+#Afican American vote
+
+Using the dataset, we can produce a chart to see the corelation between counties with high African American population and Donald Trump's performance. And, remember, the dots in the charts below are clickable.
+
+```{r firstchart, warning=F, message=F, error=F, echo=TRUE}
+
+#creating chart #1 for African American population
+
+n <- ggplot(data = us50label2) +
+  geom_point(mapping=aes(x=PercAfricanAmericanPop, y=PercTrumpVotes, size=VotesTotal2016,
+                         color=Result,
+                         text=sprintf(CountyState),
+                         alpha=.5)) + 
+  expand_limits(x = 0, y = 0) +
+  facet_wrap(~State, ncol=5) +
+  scale_color_manual(values=c("#0099CC", "#FF3333"))+
+  theme_minimal() +
+  guides(size = FALSE) +
+  guides(alpha = FALSE) +
+  labs(x = "Percentage of African Americans per county",
+       y = "Percentage of votes for Trump per county",
+       title = "Did minorities voted for Trump?",
+       subtitle = "In the 2016 elections",
+       color = "",
+       size = "Votes Total")
+
+#going interactive
+
+ggplotly(n, width = 800, height = 800)
+```
+
+Looking at chart above, in Alabama, Arkansas, Connecticut, and Georgia there is a correlation between counties with more African American population and fewer votes for the Republican candidate.
+
+
+#Hispanic vote
+
+Now it's time to see how Hispanics voted. That was a sensible theme in the elections, as one of Trump's proposes was to build a wall in the border between the US and Mexico.
+
+Also, The nice part about doing graphics in R is that we just need to change some bits in the code to produce a new chart. This time, I replaced columns about African American population with columns with data of Hispanic population.
+
+```{r secondchart, warning=F, message=F, error=F, echo=TRUE}
+
+#chart for hispanics
+
+h <- ggplot(data = us50label2) +
+  geom_point(mapping=aes(x=PercHispanicPop, y=PercTrumpVotes, size=VotesTotal2016,
+                         color=Result,
+                         text=sprintf(CountyState),
+                         alpha=.5)) + 
+  expand_limits(x = 0, y = 0) +
+  facet_wrap(~State, ncol=5) +
+  scale_color_manual(values=c("#0099CC", "#FF3333"))+
+  theme_minimal() +
+  guides(size = FALSE) +
+  guides(alpha = FALSE) +
+  labs(x = "Percentage of Hispnanics per county",
+       y = "Percentage of votes for Trump per county",
+       title = "Did Hispanics voted for Trump?",
+       subtitle = "In the 2016 elections",
+       color = "",
+       size = "Votes Total")
+
+ggplotly(h, width = 800, height = 800)
+```
+
+Comparing counties with higher Hispanic population and the elections results, there is a downward trend for Republican votes in California, and Connecticut, but not in Texas or New Mexico.
+
+
+#Asian vote
+
+About Asians, they are a smaller population than African Americans or Hispanics and lives mostly in California, New York, New Jersey, Hawaii and, Alaska. 
+
+So note that, because of their small numbers, this time we are not using a 0-100 scale in the X-axis. 
+
+```{r thirdchart, warning=F, message=F, error=F, echo=TRUE}
+# chart for Asian population
+
+a <- ggplot(data = us50label2) +
+  geom_point(mapping=aes(x=PercAsianPop, y=PercTrumpVotes, size=VotesTotal2016,
+                         color=Result,
+                         text=sprintf(CountyState),
+                         alpha=.5)) + 
+  expand_limits(x = 0, y = 0) +
+  facet_wrap(~State, ncol=5) +
+  scale_color_manual(values=c("#0099CC", "#FF3333"))+
+  theme_minimal() +
+  guides(size = FALSE) +
+  guides(alpha = FALSE) +
+  labs(x = "Percentage of Asian population per county",
+       y = "Percentage of votes for Trump per county",
+       title = "Did Asian population voted for Trump?",
+       subtitle = "In the 2016 elections",
+       color = "",
+       size = "Votes Total")
+
+#adding interactivity
+
+ggplotly(a, width = 800, height = 800)
+```
+
+In a glimpse, we can say that in Texas and Virginia, there is a trend pointing that counties with more Asian populations vote for Donald Trump.
+
+
+#And Who Won Where?
+
+Now that we already know how minorities voted. Let's take a look at who won in every county in the US. 
+
+To build the map below, we will use a package called Tigris to load the shapefiles of every US county, then we will merge them with the dataset from the US Census Bureau.
+
+```{r map, warning=F, message=F, error=F, echo=TRUE}
+
+options(tigris_class = "sf")
+```
+
+```{r shapefiles, warning=F, message=F, error=F, echo=F, include=F}
+us_shapefiles <- counties(state = NULL, cb = T)
+
+```
+
+Also, we need to download the shapefiles of every county using the tigris package. For that, just type "us_shapefiles <- counties(State = NULL, cb = T)"
+
+```{r geo join, warning=F, message=F, error=F, echo=TRUE}
+
+us_shapefiles <- us_shapefiles %>%
+  mutate(FIPS=paste0(STATEFP, COUNTYFP))
+
+us_merged <- geo_join(us_shapefiles, us_elections, "FIPS", "FIPS")
+
+uspal <- colorBin(c("deepskyblue3", "white", "red"), us_merged$DemOrRepPerc, 7, pretty = T)
+
+us_popup <- paste0("<strong>", us_merged$NAME, " County, ", as.character(us_merged$State), "</strong><br />",
+                    case_when(us_merged$DemocratOrRepublican == "0" ~ paste0("Won by Trump: ", us_merged$PerRepROUND, "%"),
+                              us_merged$DemocratOrRepublican == "1" ~ paste0("Won by Hillary: ", us_merged$PerDemROUND, "%")))
+```
+
+Click in the map to see who won in each county in the 2016 elections.
+
+```{r map2, warning=F, message=F, error=F, echo=FALSE}
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  setView(-98.483330, 38.712046, zoom = 4) %>%
+  addPolygons(data = us_merged ,
+              fillColor = ~uspal(us_merged$DemOrRepPerc),
+              fillOpacity = 0.9,
+              color = "white",
+              weight = 0.7,
+              smoothFactor = 0.1,
+              popup = ~us_popup) %>%
+  addLegend(colors = c("deepskyblue", "red"),
+            labels = c("Hillary", "Trump"),
+            position = "bottomright",
+            title = paste0("Who won where <br> in 2016 elections?"))
+
+
+```
+
+At last but not at least, it's easier to see that Trump had success at Midwest, and Hillary was the main choice in big metropolitan areas, like New York and Los Angeles.
